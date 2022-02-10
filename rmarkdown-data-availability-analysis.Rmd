@@ -1,0 +1,423 @@
+---
+title: "Data/results not shown in dental research papers - analysis"
+author: Eero Raittio, Ahmad Sofi-Mahmudi
+date: "2022-02-10"
+output: html_document
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_knit$set(root.dir = 'C:/Users/ahmad/Google Drive/Meta-Research in Dentistry/Data Availability Project/data/')
+```
+
+
+# Loading required packages
+
+```{r}
+library(tidyverse)
+```
+
+# Loading the datasets
+First, set working directory to the folder that has all the datasets in it using setwd() function and then run the following codes:
+
+```{r}
+db_all <- read.csv("db_all.csv")
+
+db_dns <- read.csv("db_dns.csv")
+
+hits_med_all <- read.csv("hits_med_all.csv")
+
+hits_med_dns <- read.csv("hits_med_dns.csv")
+
+```
+
+# Results
+## Overall perspective
+Total number of papers in dental journals in all time:
+```{r, echo=FALSE}
+data.frame(number_of_papers = nrow(db_all),
+           number_of_journals = nrow(table(db_all$journalTitle)))
+```
+
+Number of papers with "data/results not shown":
+```{r, echo=FALSE}
+data.frame(number_of_papers = nrow(db_dns),
+           nummber_of_journals = nrow(table(db_dns$journalTitle)))
+```
+
+
+## Figures
+
+First, adding the real publication year to the datasets. The real publication year is the year the paper was first appear online stored in firstPublicationDate column.
+```{r}
+library(lubridate)
+
+db_all <- db_all %>%
+  mutate(year_firstpub = year(
+    as.POSIXlt(firstPublicationDate, 
+               format = "%Y-%m-%d")
+  ))
+
+db_dns <- db_dns %>%
+  mutate(year_firstpub = year(
+    as.POSIXlt(firstPublicationDate, 
+               format = "%Y-%m-%d")
+  ))
+```
+
+
+Figure 1A (dental plot)
+```{r}
+
+trend_dent <- merge(count(db_dns, year_firstpub), count(db_all, year_firstpub), by = "year_firstpub")
+
+colnames(trend_dent) <- c("year_firstpub", "data_not_shown", "all_fulltexts")
+
+trend_dent <- mutate(trend_dent, pubYear_modified = 
+                       ifelse(year_firstpub < 1990, "< 1990",
+                     ifelse((year_firstpub >= 1990) & (year_firstpub < 1995), "1990 - 1994",
+                     ifelse((year_firstpub >= 1995) & (year_firstpub < 2000), "1995 - 1999",
+                     year_firstpub))))
+
+
+trend_dent <- trend_dent %>% 
+  group_by(pubYear_modified) %>% 
+  summarise(data_not_shown = sum(data_not_shown),
+            all_fulltexts = sum(all_fulltexts)) %>%
+  mutate(percentage = round(data_not_shown/all_fulltexts*100, 1))
+
+
+plot_dent <- trend_dent %>% 
+  ggplot() +
+  geom_col(aes(x = pubYear_modified, 
+               y = data_not_shown),
+           size = 1,
+           fill = "cornflowerblue") +
+  geom_line(aes(x = pubYear_modified, 
+                y = 10*percentage), 
+            size = 1.2,
+            color="darkorange1", 
+            linetype=2,group = 1) +
+  geom_text(aes(label = data_not_shown, 
+                x = pubYear_modified, 
+                y = data_not_shown+3),
+            color = "black", 
+            size = 3.5) +
+  geom_text(aes(label = percentage, 
+                x = pubYear_modified, 
+                y = 10*percentage), 
+            color = "black", 
+            size=3) +
+  scale_y_continuous(sec.axis = sec_axis(~./10)) +
+  theme_bw() + 
+  theme(axis.title.x=element_blank(), axis.text.x = element_blank()) + 
+  theme(axis.title.y=element_blank()) + 
+  labs(title = "A", x = "Year")
+
+
+plot_dent
+```
+
+Figure 1B (medical plot):
+```{r}
+
+trend_med <- merge(hits_med_dns, hits_med_all, by = c("year"))
+trend_med <- trend_med[, -c(2, 3, 5, 6)]
+colnames(trend_med) <- c("pubYear", "data_not_shown", "all_fulltexts")
+
+trend_med <- mutate(trend_med, pubYear_modified = 
+                       ifelse(pubYear < 1990, "< 1990",
+                     ifelse((pubYear >= 1990) & (pubYear < 1995), "1990 - 1994",
+                     ifelse((pubYear >= 1995) & (pubYear < 2000), "1995 - 1999",
+                     pubYear))))
+
+
+trend_med <- trend_med %>% 
+  group_by(pubYear_modified) %>% 
+  summarise(data_not_shown = sum(data_not_shown),
+            all_fulltexts = sum(all_fulltexts)) %>%
+  mutate(percentage = round(data_not_shown/all_fulltexts*100, 1))
+
+
+plot_med <- trend_med %>% 
+  ggplot() +
+  geom_col(aes(x = pubYear_modified, 
+               y = data_not_shown),
+           size = 1,
+           fill = "cornflowerblue") +
+  geom_line(aes(x = pubYear_modified, 
+                y = 2000*percentage), 
+            size = 1.2,
+            color="darkorange1", 
+            linetype=2,group = 1) +
+  geom_text(aes(label = percentage, 
+                x = pubYear_modified, 
+                y = 2000*percentage), 
+            color = "black", 
+            size=3) +
+  scale_y_continuous(sec.axis = sec_axis(~./2000)) +
+  guides(x =  guide_axis(angle = 45), y = guide_axis(angle = 74)) +
+  theme_bw() + 
+  theme(axis.title.y=element_blank()) +
+  labs(title = "B", x = "Year")
+
+
+plot_med
+
+```
+
+Combining plots:
+```{r}
+library(ggpubr)
+
+figure <- ggarrange(plot_dent, plot_med + font("x.text", size = 10),
+                    ncol = 1, nrow = 2)
+
+anfig <- annotate_figure(figure,
+                left = text_grob("The number of articles with data not shown", color = "black", rot = 90),
+                right = "Percentage",
+)
+
+
+# tiff("Figure.tif", units = "cm", height = 31, width = 20, res = 300)
+anfig
+# dev.off()
+```
+
+
+## 2021 perspective
+Total hits and journals for 2021:
+```{r}
+data.frame(total_hits = nrow(
+  filter(db_all, 
+         grepl("2021", firstPublicationDate))),
+           total_journals = length(
+  unique(
+  filter(db_all, 
+         grepl("2021", 
+               firstPublicationDate))
+  $journalTitle))
+  
+           )
+```
+
+For analysing publishers, we'll load publishers dataset:
+```{r}
+
+publishers <- read.csv("publishers.csv")
+```
+
+
+Join publishers to dataframes:
+```{r}
+db_all <- merge(db_all, publishers, by.x = "journalTitle", by.y = "ï..Journal", all.x = T)
+
+db_dns <- merge(db_dns, publishers, by.x = "journalTitle", by.y = "ï..Journal", all.x = T)
+
+```
+
+Number of papers, journals and publishers that published papers with "data/results not shown" in 2021:
+```{r}
+data.frame(
+  total_papers = nrow(filter(db_dns, grepl("2021", firstPublicationDate))),
+  percentage = round(nrow(filter(db_dns, grepl("2021", firstPublicationDate)))/nrow(filter(db_all, grepl("2021", firstPublicationDate)))*100, 1),
+  total_journals = length(unique(filter(db_dns, grepl("2021", firstPublicationDate))$journalTitle)),
+  total_publishers = length(unique(filter(db_dns, grepl("2021", firstPublicationDate))$Publons))
+)
+```
+
+Fisher's exact test for journal-related differences in publishing data not shown papers in 2021:
+```{r}
+library(data.table)
+
+round(fisher.test(merge(
+  table(db_all$journalTitle[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$journalTitle[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
+  simulate.p.value=TRUE,
+  hybrid=T,
+  B=100000
+  )$p.value, 3)
+
+```
+
+Fisher's exact test for publisher-related differences in publishing data not shown papers in 2021 (based on Publons):
+```{r}
+round(fisher.test(merge(
+  table(db_all$Publons[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$Publons[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
+  simulate.p.value=TRUE,
+  hybrid=T,
+  B=100000
+  )$p.value, 3)
+```
+
+Fisher's exact test for publisher-related differences in publishing data not shown papers in 2021 (based on NLM Catalog):
+```{r}
+round(fisher.test(merge(
+  table(db_all$NLMCatalog[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$NLMCatalog[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
+  simulate.p.value=TRUE,
+  hybrid=T,
+  B=100000
+  )$p.value, 3)
+```
+
+Fisher's exact test for publisher-related differences in publishing data not shown papers in 2021 (based on SCImago):
+```{r}
+round(fisher.test(merge(
+  table(db_all$SCImago[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$SCImago[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
+  simulate.p.value=TRUE,
+  hybrid=T,
+  B=100000
+  )$p.value, 3)
+```
+
+## Tables
+Table 2. The number of available open access articles from Europe PubMed Central and the number of articles with “data/results not shown” phrases in each journal:
+```{r}
+
+merge(
+  table(db_all$journalTitle[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$journalTitle[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = T) %>% 
+  mutate(proportion = round((Freq.y/Freq.x)*100, 1)) %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("journal", "total_studies", "studies_with_data_not_shown", "proportion"))
+  
+```
+
+For "Others" row of Table 2:
+```{r}
+merge(
+  table(db_all$journalTitle[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$journalTitle[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = T) %>%
+  filter(is.na(Freq.y)) %>%
+  summarise(total_journals = n(),
+            total_papers = sum(Freq.x))
+```
+
+Table 3. The number of available open access articles from Europe PubMed Central and the number of articles with “data/results not shown” phrases in journals of each publisher:
+```{r}
+
+merge(
+  table(db_all$Publons[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$Publons[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1") %>% 
+  mutate(proportion = round((Freq.y/Freq.x)*100, 1)) %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("publisher", "total_studies", "studies_with_data_not_shown", "proportion"))
+  
+```
+
+For "Others" row of Table 3:
+```{r}
+merge(
+  table(db_all$Publons[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
+  table(db_dns$Publons[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
+  by = "Var1", all = T) %>%
+  filter(is.na(Freq.y)) %>%
+  summarise(total_publishers = n(),
+            total_papers = sum(Freq.x))
+```
+
+## Analysing "data/results not shown" types in 2021
+First loading dataset that contains categories for data not shown phrases in 2021 papers:
+```{r}
+
+dns_2021 <- read.csv("dns_2021.csv")
+
+```
+
+Frequency and proportion of each category:
+```{r}
+merge(
+  table(dns_2021[, 11]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 11]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("result_type", "frequency", "percentage"))
+```
+
+Frequency and proportion of times they used the phrase in their paper:
+```{r}
+merge(
+  table(dns_2021[, 13]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 13]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("times", "frequency", "percentage"))
+```
+
+Frequency and proportion of data and code sharing statement:
+```{r}
+merge(
+  table(dns_2021[, 7]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 7]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("statement", "frequency", "percentage"))
+```
+
+Frequency and proportion of papers that shared data:
+```{r}
+merge(
+  table(dns_2021[, 8]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 8]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("shared_data", "frequency", "percentage"))
+```
+
+Frequency and proportion of papers that shared code:
+```{r}
+merge(
+  table(dns_2021[, 9]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 9]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("shared_code", "frequency", "percentage"))
+```
+
+Frequency and proportion of papers with supplementary materials:
+```{r}
+merge(
+  table(dns_2021[, 10]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 10]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("supplementary", "frequency", "percentage"))
+```
+
+Frequency and proportion of papers with supplementary materials:
+```{r}
+merge(
+  table(dns_2021[, 10]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 10]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("supplementary", "frequency", "percentage"))
+```
+
+Frequency and proportion of journals with unlimited supplementary material upload:
+```{r}
+merge(
+  table(dns_2021[, 14]) %>% as.data.frame(),
+  round(prop.table(table(dns_2021[, 14]))*100, 1) %>% as.data.frame(),
+  by = "Var1") %>% 
+  arrange(desc(Freq.y)) %>%
+  setNames(c("status", "frequency", "percentage"))
+
+```
+
+Journals with unclear supplementary material upload status:
+```{r}
+dns_2021 %>%
+  filter(across(14) == "Unclear") %>%
+  select(6)
+```
+

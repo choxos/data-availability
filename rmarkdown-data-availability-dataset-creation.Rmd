@@ -1,0 +1,91 @@
+---
+title: "Data not shown in dental research papers - dataset creation"
+output: html_notebook
+---
+
+
+# Loading required packages
+
+```{r}
+pacman::p_load(tidyverse, 
+               oddpub,
+               rtransparent, 
+               metareadr, 
+               europepmc, 
+               readxl)
+```
+
+
+# Load the datasets
+
+## Load International Standard Serial Numbers (ISSNs)
+
+```{r}
+ISSNs <- read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vTcoDSEDhtzrYe8u8hkLC9OQ9fZHaQn8cBNZt_7k-qnqtDFP0OCxXPj9aM38D0umO2stdox41C1eZAi/pub?gid=0&single=true&output=csv")
+```
+
+## Some modifications are needed...
+```{r}
+ISSNs <- ISSNs %>% mutate(search.term = paste0("ISSN:", Primary.ISSN))
+ISSNsQuery <- paste(ISSNs$search.term, 
+                    collapse = " OR ")
+```
+
+## Load ALL (open access and non-open access) dentistry and oral health papers indexed in PubMed from 2016 to the end of 2021
+
+```{r}
+db_all <- epmc_search(
+  query = paste0(
+    '(',
+    ISSNsQuery,
+    ')',
+    'AND (SRC:"MED") 
+    AND (LANG:"eng" OR LANG:"en" OR LANG:"us") 
+    AND (FIRST_PDATE:[1900-01-01 TO 2021-12-31])
+    AND ((IN_EPMC:y) OR (OPEN_ACCESS:y))'
+  ),
+  limit = 100000,
+  output = "parsed"
+)
+```
+
+
+
+```{r}
+db_dns <- epmc_search(
+  query = paste0(
+    '(',
+    ISSNsQuery,
+    ')',
+    'AND ("results not shown" OR "data not shown")
+    AND (SRC:"MED") 
+    AND (LANG:"eng" OR LANG:"en" OR LANG:"us") 
+    AND (FIRST_PDATE:[1900-01-01 TO 2021-12-31])
+    AND ((IN_EPMC:y) OR (OPEN_ACCESS:y))'
+  ),
+  limit = 100000,
+  output = "parsed"
+)
+```
+
+
+```{r}
+hits_med_all <- epmc_hits_trend(
+  query = '(LANG:"eng" OR LANG:"en" OR LANG:"us")
+    AND (FIRST_PDATE:[1900-01-01 TO 2021-12-31])
+    AND ((IN_EPMC:y) OR (OPEN_ACCESS:y))',
+  period = 1900:2021
+)
+```
+
+
+```{r}
+hits_med_dns <- epmc_hits_trend(
+  query ='("results not shown" OR "data not shown")
+    AND (LANG:"eng" OR LANG:"en" OR LANG:"us")
+    AND (FIRST_PDATE:[1900-01-01 TO 2021-12-31])
+    AND ((IN_EPMC:y) OR (OPEN_ACCESS:y))',
+  period = 1900:2021
+)
+```
+
