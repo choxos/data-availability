@@ -6,27 +6,30 @@ output: html_document
 ---
 
 ```{r, setup, include=FALSE}
-knitr::opts_knit$set(root.dir = 'C:/Users/ahmad/Google Drive/Meta-Research in Dentistry/Data Availability Project/data/')
+knitr::opts_knit$set(root.dir = 'C:/Users/eeror/OneDrive/Tiedostot/GitHub/data-availability')
 ```
 
+# Download and unpack data folder
 
-# Loading required packages
+# Loading required packages (after install of pacman package)
 
 ```{r}
-library(tidyverse)
+#install.packages("pacman")
+library(pacman)
+p_load(tidyverse,lubridate, ggplot2,ggpubr,data.table, gtsummary)
 ```
 
 # Loading the datasets
 First, set working directory to the folder that has all the datasets in it using setwd() function and then run the following codes:
 
 ```{r}
-db_all <- read.csv("db_all.csv")
+db_all <- read.csv("data/db_all.csv")
 
-db_dns <- read.csv("db_dns.csv")
+db_dns <- read.csv("data/db_dns.csv")
 
-hits_med_all <- read.csv("hits_med_all.csv")
+hits_med_all <- read.csv("data/hits_med_all.csv")
 
-hits_med_dns <- read.csv("hits_med_dns.csv")
+hits_med_dns <- read.csv("data/hits_med_dns.csv")
 
 ```
 
@@ -49,8 +52,6 @@ data.frame(number_of_papers = nrow(db_dns),
 
 First, adding the real publication year to the datasets. The real publication year is the year the paper was first appear online stored in firstPublicationDate column.
 ```{r}
-library(lubridate)
-
 db_all <- db_all %>%
   mutate(year_firstpub = year(
     as.POSIXlt(firstPublicationDate, 
@@ -167,8 +168,6 @@ plot_med
 
 Combining plots:
 ```{r}
-library(ggpubr)
-
 figure <- ggarrange(plot_dent, plot_med + font("x.text", size = 10),
                     ncol = 1, nrow = 2)
 
@@ -203,7 +202,7 @@ data.frame(total_hits = nrow(
 For analysing publishers, we'll load publishers dataset:
 ```{r}
 
-publishers <- read.csv("publishers.csv")
+publishers <- read.csv("data/publishers.csv")
 ```
 
 
@@ -225,55 +224,36 @@ data.frame(
 )
 ```
 
-Fisher's exact test for journal-related differences in publishing data not shown papers in 2021:
+Journal-related differences in publishing data not shown papers in 2021:
 ```{r}
-library(data.table)
-
-round(fisher.test(merge(
-  table(db_all$journalTitle[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
-  table(db_dns$journalTitle[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
-  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
-  simulate.p.value=TRUE,
-  hybrid=T,
-  B=100000
-  )$p.value, 3)
-
+db_dns$datanotshown = 1
+db_total = merge(db_all,db_dns,all=T)
+db_total$datanotshown = ifelse(is.na(db_total$datanotshown),0,db_total$datanotshown)
+db_total  %>% filter(firstPublicationDate %like% "2021") %>% select(datanotshown,journalTitle) %>%
+  tbl_summary(by=journalTitle, label = list(datanotshown ~ "Data not shown")) %>% add_p(test.args=all_tests("fisher.test") ~ list(simulate.p.value=TRUE))%>% 
+        as_flex_table()
 ```
 
-Fisher's exact test for publisher-related differences in publishing data not shown papers in 2021 (based on Publons):
+Publisher-related differences in publishing data not shown papers in 2021 (based on Publons):
 ```{r}
-round(fisher.test(merge(
-  table(db_all$Publons[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
-  table(db_dns$Publons[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
-  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
-  simulate.p.value=TRUE,
-  hybrid=T,
-  B=100000
-  )$p.value, 3)
+db_total  %>% filter(firstPublicationDate %like% "2021") %>% select(datanotshown,Publons) %>%
+  tbl_summary(by=Publons, label = list(datanotshown ~ "Data not shown")) %>% add_p(test.args=all_tests("fisher.test") ~ list(simulate.p.value=TRUE))%>% 
+        as_flex_table()
+
 ```
 
 Fisher's exact test for publisher-related differences in publishing data not shown papers in 2021 (based on NLM Catalog):
 ```{r}
-round(fisher.test(merge(
-  table(db_all$NLMCatalog[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
-  table(db_dns$NLMCatalog[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
-  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
-  simulate.p.value=TRUE,
-  hybrid=T,
-  B=100000
-  )$p.value, 3)
+db_total  %>% filter(firstPublicationDate %like% "2021") %>% select(datanotshown,NLMCatalog) %>%
+  tbl_summary(by=NLMCatalog, label = list(datanotshown ~ "Data not shown")) %>% add_p(test.args=all_tests("fisher.test") ~ list(simulate.p.value=TRUE))%>% 
+        as_flex_table()
 ```
 
-Fisher's exact test for publisher-related differences in publishing data not shown papers in 2021 (based on SCImago):
+Publisher-related differences in publishing data not shown papers in 2021 (based on SCImago):
 ```{r}
-round(fisher.test(merge(
-  table(db_all$SCImago[db_all$firstPublicationDate %like% "2021"]) %>% as.data.frame(), 
-  table(db_dns$SCImago[db_dns$firstPublicationDate %like% "2021"]) %>% as.data.frame(),
-  by = "Var1", all = TRUE) %>% mutate(Freq.y = replace(Freq.y, is.na(Freq.y), 0)) %>% select(Freq.x, Freq.y),
-  simulate.p.value=TRUE,
-  hybrid=T,
-  B=100000
-  )$p.value, 3)
+db_total  %>% filter(firstPublicationDate %like% "2021") %>% select(datanotshown,SCImago) %>%
+  tbl_summary(by=SCImago, label = list(datanotshown ~ "Data not shown")) %>% add_p(test.args=all_tests("fisher.test") ~ list(simulate.p.value=TRUE))%>% 
+        as_flex_table()
 ```
 
 ## Tables
@@ -328,9 +308,7 @@ merge(
 ## Analysing "data/results not shown" types in 2021
 First loading dataset that contains categories for data not shown phrases in 2021 papers:
 ```{r}
-
-dns_2021 <- read.csv("dns_2021.csv")
-
+dns_2021 <- read.csv("data/dns_2021.csv")
 ```
 
 Frequency and proportion of each category:
